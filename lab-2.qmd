@@ -1,16 +1,22 @@
 ---
 title: "Lab 2"
 subtitle: "Advanced Data Visualization"
+format: html
 embed-resources: true
 editor: source
-  markdown: 
-    wrap: 72
+execute: 
+  echo: true
+  warning: false
 ---
 
 ```{r}
 library(tidyverse)
 library(readxl)
 library(here)
+library(scales)
+library(ggrepel)
+library(gganimate)
+library(gifski)
 ```
 
 
@@ -118,11 +124,138 @@ grouped <- clean_regions %>%
 6.  Improve the visualization above by either re-creating it with the issues you identified fixed OR by creating a new visualization that you believe tells the same story better.
 
 ```{r}
-#| label: new-and-improved-visualization
+#| label: top and bottom 5 from each region
+top5bot5 <- grouped %>% 
+    group_by(Region) %>%
+    mutate(rank = rank(pct_vaccines_safe)) %>%
+    filter(rank <= 5 | rank > n() - 5) %>%
+    ungroup()
 
-
-
+medians <- grouped %>% 
+        group_by(Region) %>% 
+        summarize(median_value = median(pct_vaccines_safe)) %>%
+        mutate(y = Inf, label = paste0(scales::percent(median_value, accuracy = 0.1)))
 ```
+
+```{r}
+#| label: labels for each region
+label_data <- grouped %>%
+  group_by(Region) %>%
+  slice_max(pct_vaccines_safe, n = 1) %>%  
+  ungroup()
+```
+
+
+
+```{r}
+#| echo: false
+#| eval: false
+grouped %>%
+  ggplot(aes(x = pct_vaccines_safe, y=reorder(country, pct_vaccines_safe))) +
+  geom_vline(
+    data = medians,
+    aes(xintercept = median_value),
+    linetype = "solid",
+    color = "black",
+    linewidth = 0.7
+  ) +
+  geom_point(aes(color = Region), show.legend = FALSE) +
+  geom_text(
+    data = medians,
+    aes(x = median_value, y = y, label = label),
+    vjust = 2.8,
+    hjust = 0.5,
+    size = 2.5,
+    color = "dimgray"
+  ) +
+  theme_grey() +
+  facet_wrap(~ Region, ncol=1, scales="free_y") +
+  theme(
+    strip.text = element_text(face = "bold", size = 10),
+    axis.text.y= element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.spacing = unit(1, "lines"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    plot.margin = margin(15, 25, 15, 15)
+  ) +
+  labs(
+    title = "Percentage of people across countries who believes vaccines are safe",
+    subtitle = "Dark lines represent region median",
+    x = "% who believe vaccines are safe",
+    y = ""
+  ) +
+  scale_x_continuous(labels = percent_format(scale=100), expand = expansion(mult = c(0.05, 0.15))) +
+  coord_cartesian(clip = "off")
+```
+
+```{r}
+#| label: new-and-improved-visualization
+test <- grouped %>%
+  ggplot(aes(x = pct_vaccines_safe, y=reorder(country, pct_vaccines_safe))) +
+  geom_vline(
+    data = medians,
+    aes(xintercept = median_value),
+    linetype = "dashed",
+    color = "black",
+    linewidth = 0.7
+  ) +
+  geom_point(aes(color = Region), show.legend = FALSE) +
+  geom_text_repel(data = top5bot5,
+                  aes(x = pct_vaccines_safe, y = country, label=country),
+                   size = 3,
+    nudge_x = 0.1,
+    nudge_y = -0.1,
+    direction = "y",
+    segment.color = "azure4",
+    color = "gray50",
+    box.padding = 0.35,
+    max.overlaps = 20,
+    max.time =	3,
+    ) +
+  geom_text(
+    data = medians,
+    aes(x = median_value, y = y, label = label),
+    vjust = 0,
+    hjust = 0.5,
+    size = 3,
+    color = "black"
+  ) +
+  geom_text(
+  data = label_data,
+  aes(x = 0.5, y = Inf, label = Region, color = Region),
+  vjust = 2,
+  size = 6.5,
+  fontface = "bold",
+  show.legend = FALSE,
+  inherit.aes = FALSE
+) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold", size = 10),
+    panel.grid.minor.x = element_blank(), 
+    axis.text.y= element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.spacing = unit(1, "lines"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    plot.margin = margin(15, 25, 15, 15)
+  ) +
+  labs(
+    title = "Percentage of people across countries who believes vaccines are safe",
+    subtitle = "Dashed line is the median for the region",
+    x = "Percentage who believe vaccines are safe",
+    y = ""
+  ) +
+  scale_x_continuous(labels = percent_format(scale=100),
+                    breaks = seq(0.4, 1, by = 0.2),
+                     expand = expansion(mult = c(0.05, 0.15))) +
+  coord_cartesian(clip = "off") +
+  transition_states(Region, transition_length = 0, state_length = 10)
+
+animate(test, nframes = 60, duration = 30)
+```
+The country labels slightly jitter and get in the way a tad but this is the best I was able to come up with based off my initial ideas
 
 # Part Two: Broad Visualization Improvement
 
