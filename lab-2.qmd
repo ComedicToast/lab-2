@@ -304,6 +304,7 @@ This is a choropleth map.
 q2data <- crosstabs %>%
 fill(Question, .direction="down") %>%
   filter(Question == "Wellcome Global Monitor Trust in Scientists Index (recoded into 3 categories)", Response == "High trust") %>%
+  mutate(`Column N %...4` = round(`Column N %...4`,4)) %>%
   rename(`High trust in scientists %` = `Column N %...4`) %>%
   select(1,4)
 ```
@@ -365,13 +366,29 @@ leaflet(WorldCountry) %>%
 
 13. Select a data visualization in the report that you think could be improved. Be sure to cite both the page number and figure title. Do your best to tell the story of this graph in words. That is, what is this graph telling you? What do you think the authors meant to convey with it?
 
+I am selecting Chart 5.3: Perceived effectiveness of vaccines by region. It is on page 111.
+
+The graph is attempting to show how different regions of the world view vaccine effectiveness with a horizontal stacked bar chart. They intend to showcase different world region views on vaccine effectiveness.
+
 14. List the variables that appear to be displayed in this visualization.
+
+Region, opinion on vaccine effectiveness (6 categories)
 
 15. Now that you're versed in the grammar of graphics (ggplot), list the aesthetics used and which variables are specified for each.
 
+The x-axis is just a 0 to 1 axis, the y-axis is the region of the world, and the color is the category of belief in vaccine effectiveness.
+
 16. What type of graph would you call this?
 
+This is a stacked bar chart, so I would use geom_bar() most likely.
+
 17. List all of the problems or things you would improve about this graph.
+
+-   In my opinion, the graph is a bit overcrowded due to the stacked bar chart nature
+
+-   Labelling is inconsistent due to some segments being very small
+
+-   My idea is to separate the graph into a gif where each frame is a different world region and it shows just a regular bar chart. This would also eliminate the need for a legend.
 
 18. Improve the visualization above by either re-creating it with the issues you identified fixed OR by creating a new visualization that you believe tells the same story better.
 
