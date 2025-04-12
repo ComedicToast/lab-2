@@ -20,6 +20,7 @@ library(gifski)
 library(leaflet)
 library(geojsonio)
 library(sf)
+library(viridisLite)
 ```
 
 
@@ -95,14 +96,14 @@ parts <- as_tibble(parts)
 
 country_codes <- separate_wider_delim(parts, value, delim = "=", names = c("code", "country"))
 
-burger <- left_join(cleaned, country_codes, by = "country")
+cleaned_codes <- left_join(cleaned, country_codes, by = "country")
 
 countries_regions <- full_data %>%
   select(WP5, Regions_Report) %>%
   rename("code" = "WP5") %>%
   mutate(code = as.character(code))
 
-clean_regions <- left_join(burger, countries_regions, by = "code") %>%
+clean_regions <- left_join(cleaned_codes, countries_regions, by = "code") %>%
   distinct() 
 ```
 
@@ -393,7 +394,115 @@ This is a stacked bar chart, so I would use geom_bar() most likely.
 18. Improve the visualization above by either re-creating it with the issues you identified fixed OR by creating a new visualization that you believe tells the same story better.
 
 ```{r}
+#| label: clean/grab data for part 3
+
+q3data <- crosstabs %>%
+fill(Question, .direction="down") %>%
+  filter(Question == "Q26 Do you strongly or somewhat agree, strongly or somewhat disagree or neither agree nor disagree with the following statement? Vaccines are effective.") %>%
+  rename(`Proportion` = `Column N %...4`) %>%
+  select(1, 3:5)
+```
+
+```{r}
+# Remove the trailing comma
+text <- sub(",$", "", dictionary[1,3])
+
+# Split by comma
+parts <- strsplit(text, ",\\s*")[[1]]
+
+parts <- as_tibble(parts)
+
+country_codes <- separate_wider_delim(parts, value, delim = "=", names = c("code", "Country"))
+
+cleaned_codes <- left_join(q3data, country_codes, by = "Country")
+
+countries_regions <- full_data %>%
+  select(WP5, Regions_Report) %>%
+  rename("code" = "WP5") %>%
+  mutate(code = as.character(code),
+         Regions_Report = as.character(Regions_Report))
+
+clean_regions <- left_join(cleaned_codes, countries_regions, by = "code") %>%
+  distinct() 
+```
+```{r}
+# Remove the trailing comma
+text <- sub(",$", "", dictionary[57,3])
+
+# Split by comma
+parts <- strsplit(text, ",\\s*")[[1]]
+
+parts <- as_tibble(parts)
+
+region_codes <- separate_wider_delim(parts, value, delim = "=", names = c("Regions_Report", "Region"))
+
+cleaned_codes <- left_join(clean_regions, region_codes, by = "Regions_Report")
+
+q3clean <- cleaned_codes %>%
+  mutate(Region = replace_na(Region, "Not assigned")) %>%
+  select(-c(Proportion,code,Regions_Report)) %>%
+  filter(Response != "Total") %>%
+  rename(Counts = `Unweighted Count...5`)
+```
+
+Going to use the raw counts to make the bar graphs since averaging proportions across countries doesn't make sense, and the weight adjustment they used for the proportions is unclear
+
+```{r}
+region_response_props <- q3clean %>%
+  group_by(Region, Response) %>%
+  summarise(RegionCounts = sum(Counts)) %>%
+  mutate(Proportion = RegionCounts / sum(RegionCounts))
+
+region_response_props <- region_response_props %>%
+   mutate(Response = factor(Response, levels = c(
+    "Strongly agree",
+    "Somewhat agree",
+    "Neither agree nor disagree",
+    "Somewhat disagree",
+    "Strongly disagree",
+    "Don't know/Refused"
+  )))
+```
+```{r}
+label_data <- region_response_props %>%
+  group_by(Region) %>%
+  slice_max(RegionCounts, n = 1) %>%  
+  ungroup()
+```
+
+
+
+```{r}
 #| label: third-improved-visualization
 
+p <- ggplot(region_response_props, aes(x = factor(Response, c(
+    "Strongly agree",
+    "Somewhat agree",
+    "Neither agree nor disagree",
+    "Somewhat disagree",
+    "Strongly disagree",
+    "Don't know/Refused")), y = Proportion, fill = Response)) +
+  geom_col() +
+  # geom_text(aes(label = scales::percent(Proportion, accuracy = 1), group=Response),
+  #         hjust = -0.1,  
+  #         size = 4,      
+  #         color = "black",
+  #         fontface = "bold") +
+  scale_fill_brewer(palette = "Set3") +
+  labs(title = "Belief in the statement: \"Vaccines are effective.\"", subtitle = "Region: {closest_state}",
+       x = "", y = "") +
+  scale_y_continuous(labels = scales::percent_format()) +
+    coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "none",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        plot.title.position = "plot",
+        plot.title = element_text(size = 20, hjust = 0),
+        plot.subtitle = element_text(size = 15, hjust = 0, face="bold"),
+        axis.text.y = element_text(size = 9,, color = "black")) +
+  transition_states(Region, transition_length = 4, state_length = 2) +
+  ease_aes('cubic-in-out')
 
+animate(p, fps = 10, duration = 50)
 ```
